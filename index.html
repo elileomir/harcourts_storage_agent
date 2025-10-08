@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Storage Units - Expression of Interest Chatbot</title>
+    <link rel="icon" href="StorageAI_Logo.png" type="image/png">
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- User Info Modal -->
+    <div id="userInfoModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Welcome to Storage Units Chatbot</h3>
+                <p>Please provide your details to get started</p>
+            </div>
+            <form id="userInfoForm">
+                <div class="form-group">
+                    <label for="userName">Name *</label>
+                    <input type="text" id="userName" name="userName" required>
+                </div>
+                <div class="form-group">
+                    <label for="userEmail">Email Address *</label>
+                    <input type="email" id="userEmail" name="userEmail" required>
+                </div>
+                <button type="submit" class="btn-primary">Start Conversation</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Waitlist Modal -->
+    <div id="waitlistModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Want to join the waitlist?</h3>
+                <p>Submit your interest here</p>
+            </div>
+            <div class="modal-body" style="padding: 24px; text-align: center;">
+                <p style="margin-bottom: 24px; font-size: 16px; color: #6c757d;">
+                    Get notified when storage units become available. We'll contact you as soon as a unit matching your needs becomes available.
+                </p>
+                <button class="btn-primary" onclick="openWaitlistForm()" style="font-size: 18px; padding: 16px 32px;">
+                    Expressions of Interest
+                </button>
+                <div class="modal-actions" style="margin-top: 24px;">
+                    <button type="button" class="btn-secondary" onclick="closeWaitlistModal()">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chatbot Container -->
+    <div class="chatbot-container">
+        <div class="chatbot-header">
+            <div class="chatbot-title">
+                <img src="StorageAI_Logo.png" alt="StorageAI" class="chatbot-logo">
+                <span>Storage Units Assistant</span>
+            </div>
+            <div class="chatbot-subtitle">Expression of Interest</div>
+        </div>
+        
+        <div class="chatbot-body">
+            <div id="chatMessages" class="chat-messages">
+                <!-- Messages will be added dynamically -->
+            </div>
+            
+            <div class="chatbot-input-container">
+                <div id="quickActionsDock" class="quick-actions quick-actions--dock">
+                    <div class="quick-actions-title">Quick Actions:</div>
+                    <div class="quick-actions-buttons">
+                        <button class="quick-action-btn" onclick="handleQuickAction('virtual-tour')">
+                            <i class="fas fa-camera"></i>
+                            Virtual Tour
+                        </button>
+                        <button class="quick-action-btn" onclick="handleQuickAction('waitlist')">
+                            <i class="fas fa-list"></i>
+                            Join Waitlist
+                        </button>
+                    </div>
+                </div>
+                <div class="input-wrapper">
+                    <input type="text" id="chatInput" placeholder="Type your message here..." disabled>
+                    <button id="sendButton" class="send-button" disabled>
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Virtual Tour Gallery (Hidden by default) -->
+    <div id="virtualTourGallery" class="virtual-tour-gallery" style="display: none;">
+        <div class="gallery-header">
+            <h3>Virtual Tour Gallery</h3>
+            <button class="close-gallery" onclick="closeVirtualTour()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="gallery-content">
+            <div class="gallery-item">
+                <img src="https://assets.cloudhi.io/media/c96b3f0f-8340-4234-81d5-5131676577b9/013dc124-6518-43de-8567-9c868c8ff49b/8cCZaTzOBeFmff4CBU31SyDEtFOno0lrUifUcxOj.jpg.webp" alt="Ulverstone Secure Storage">
+                <div class="gallery-item-info">
+                    <h4>Ulverstone Secure Storage</h4>
+                    <p>Located at 45 Fieldings Way is the Ulverstone Secure Storage Facility. Comprising of over 80 units ranging from colourbond sheds with concrete floors to shipping containers, this facility has something for everyone.</p>
+                    <p><strong>Security:</strong> Known for its high level of security with 24/7 CCTV, lights and keyed access, the facility is accessible to tenants at all hours of the day/night.</p>
+                    <p><strong>Pricing:</strong> $226 per month for a large storage unit the size of a single garage, with some smaller containers available at $152 per month.</p>
+                    <p><strong>Availability:</strong> With limited availability, we suggest you join the waitlist by completing the form linked at the bottom of this page.</p>
+                    <button class="btn-primary" onclick="openVirtualTour('https://aus01.safelinks.protection.outlook.com/?url=https%3A%2F%2Fvirtual-tour.ipropertyexpress.com%2Fvt%2Ftour%2F3a602bd0-1aa7-4d55-8bf3-27832048ab66&data=05%7C02%7Cstorageup%40harcourts.com.au%7C6fa2e8af2658444da21308dcecd69ab3%7Cad59963c5d07405f9dce1dbdb4e4f139%7C0%7C0%7C638645653657778934%7CUnknown%7CTWFpbGZsb3d8eyJWIjoiMC4wLjAwMDAiLCJQIjoiV2luMzIiLCJBTiI6Ik1haWwiLCJXVCI6Mn0%3D%7C0%7C%7C%7C&sdata=e72Xp%2Fq3FUCuhKOYE6FlJbULLzL%2Fcp90gocXUIQzIU4%3D&reserved=0')">Virtual Tour</button>
+                </div>
+            </div>
+            <div class="gallery-item">
+                <img src="https://assets.cloudhi.io/media/c96b3f0f-8340-4234-81d5-5131676577b9/013dc124-6518-43de-8567-9c868c8ff49b/ZKqlXkXfc4axjy7mUdMPmWpPkEzbV8yGQpbW1Ylc.jpg.webp" alt="Deegan Marine">
+                <div class="gallery-item-info">
+                    <h4>Deegan Marine</h4>
+                    <p>Located at the roundabout on Eastland Drive, Deegan Marine houses shipping container storage for your convenience. With large and small options, there is something to suit everyone.</p>
+                    <p><strong>Access:</strong> Accessible only during Deegan Marine business hours, this facility is ideal for the long haul or boat storage.</p>
+                    <p><strong>Pricing:</strong> Priced from $120 per month.</p>
+                    <p><strong>Availability:</strong> With limited availability, we suggest you join the waitlist by completing the form linked at the bottom of this page.</p>
+                    <button class="btn-primary" onclick="openVirtualTour('https://aus01.safelinks.protection.outlook.com/?url=https%3A%2F%2Fvirtual-tour.ipropertyexpress.com%2Fvt%2Ftour%2Fb3b9ce51-5643-4565-93df-5e59e7f77285&data=05%7C02%7Cstorageup%40harcourts.com.au%7C8a803292c78f48408c4608dcecd6c5cd%7Cad59963c5d07405f9dce1dbdb4e4f139%7C0%7C0%7C638645654377476796%7CUnknown%7CTWFpbGZsb3d8eyJWIjoiMC4wLjAwMDAiLCJQIjoiV2luMzIiLCJBTiI6Ik1haWwiLCJXVCI6Mn0%3D%7C0%7C%7C%7C&sdata=IQwC0d1UB6y%2F8RVZSI2WaKW7y16Jc1mv0xD8qnZJ27g%3D&reserved=0')">Virtual Tour</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

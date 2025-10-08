@@ -1,0 +1,613 @@
+// Global variables
+let userInfo = {
+    name: '',
+    email: ''
+};
+
+let isWaitingForResponse = false;
+let sessionId = generateSessionId();
+let hasUserInfo = false;
+
+// Webhook URL
+const WEBHOOK_URL = 'https://hup.app.n8n.cloud/webhook/80351e0b-d9ed-4380-81d7-c8f284e566f4/chat';
+
+// Generate unique session ID
+function generateSessionId() {
+    return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
+// Initialize the chatbot
+document.addEventListener('DOMContentLoaded', function() {
+    // Show user info modal on load
+    showUserInfoModal();
+    
+    // Setup event listeners
+    setupEventListeners();
+});
+
+function setupEventListeners() {
+    // User info form submission
+    const userInfoForm = document.getElementById('userInfoForm');
+    if (userInfoForm) {
+        userInfoForm.addEventListener('submit', handleUserInfoSubmit);
+    }
+    
+    // Waitlist form submission
+    const waitlistForm = document.getElementById('waitlistForm');
+    if (waitlistForm) {
+        waitlistForm.addEventListener('submit', handleWaitlistSubmit);
+    }
+    
+    // Chat input
+    const chatInput = document.getElementById('chatInput');
+    const sendButton = document.getElementById('sendButton');
+    if (!chatInput || !sendButton) return; // Defensive: stop if core inputs missing
+    
+    chatInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+    
+    sendButton.addEventListener('click', sendMessage);
+    
+    // Input change handler
+    chatInput.addEventListener('input', function() {
+        updateSendButtonState();
+    });
+    
+    // Initialize send button state once listeners are attached
+    updateSendButtonState();
+}
+
+function showUserInfoModal() {
+    document.getElementById('userInfoModal').style.display = 'block';
+}
+
+function hideUserInfoModal() {
+    document.getElementById('userInfoModal').style.display = 'none';
+}
+
+function handleUserInfoSubmit(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(e.target);
+    userInfo.name = formData.get('userName');
+    userInfo.email = formData.get('userEmail');
+    
+    if (userInfo.name && userInfo.email) {
+        hasUserInfo = true;
+        hideUserInfoModal();
+        enableChat();
+        // Only add ONE welcome message
+        addBotMessage(`Hello ${userInfo.name}! I'm here to help you with information about our storage units. How can I assist you today?`);
+        // Add quick action buttons
+        addQuickActions();
+        // Update send button state after user info is set
+        updateSendButtonState();
+    }
+}
+
+function enableChat() {
+    document.getElementById('chatInput').disabled = false;
+    document.getElementById('chatInput').focus();
+    // Update send button state
+    updateSendButtonState();
+}
+
+function updateSendButtonState() {
+    const sendButton = document.getElementById('sendButton');
+    const chatInput = document.getElementById('chatInput');
+    const hasText = chatInput.value.trim().length > 0;
+    const shouldDisable = !hasText || isWaitingForResponse || !hasUserInfo;
+    
+    console.log('Send button state:', {
+        hasText,
+        isWaitingForResponse,
+        hasUserInfo,
+        shouldDisable
+    });
+    
+    sendButton.disabled = shouldDisable;
+}
+
+function addQuickActions() {
+    // Use docked quick actions if present; avoid duplicating inside messages
+    const dock = document.getElementById('quickActionsDock');
+    if (dock) return; // Already rendered in HTML
+}
+
+function handleQuickAction(action) {
+    const chatInput = document.getElementById('chatInput');
+    
+    switch(action) {
+        case 'virtual-tour':
+            chatInput.value = 'I want to see the virtual tour';
+            break;
+        case 'waitlist':
+            chatInput.value = 'I want to join the waitlist';
+            break;
+    }
+    
+    // Trigger input event to enable send button
+    chatInput.dispatchEvent(new Event('input'));
+    // Send the message
+    sendMessage();
+}
+
+function addBotMessage(text, isTyping = false) {
+    const chatMessages = document.getElementById('chatMessages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message bot-message';
+    
+    if (isTyping) {
+        messageDiv.innerHTML = `
+            <div class="message-avatar">
+                <img src="StorageAI_Logo.png" alt="StorageAI" class="bot-avatar-img">
+            </div>
+            <div class="message-content">
+                <div class="typing-indicator">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            </div>
+        `;
+    } else {
+        messageDiv.innerHTML = `
+            <div class="message-avatar">
+                <img src="StorageAI_Logo.png" alt="StorageAI" class="bot-avatar-img">
+            </div>
+            <div class="message-content">
+                <p>${text}</p>
+            </div>
+        `;
+    }
+    
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function addUserMessage(text) {
+    const chatMessages = document.getElementById('chatMessages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message user-message';
+    messageDiv.innerHTML = `
+        <div class="message-avatar">
+            <i class="fas fa-user"></i>
+        </div>
+        <div class="message-content">
+            <p>${text}</p>
+        </div>
+    `;
+    
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function sendMessage() {
+    const chatInput = document.getElementById('chatInput');
+    const message = chatInput.value.trim();
+    
+    if (!message || isWaitingForResponse) return;
+    
+    // Add user message
+    addUserMessage(message);
+    chatInput.value = '';
+    document.getElementById('sendButton').disabled = true;
+    
+    // Check for specific intents
+    const lowerMessage = message.toLowerCase();
+    
+    if (checkForVirtualTourIntent(lowerMessage)) {
+        handleVirtualTourRequest();
+        return;
+    }
+    
+    if (checkForWaitlistIntent(lowerMessage)) {
+        handleWaitlistRequest();
+        return;
+    }
+    
+    // Send to webhook for general conversation
+    sendToWebhook(message);
+}
+
+function checkForVirtualTourIntent(message) {
+    const virtualTourKeywords = [
+        'virtual tour', 'tour', 'see', 'view', 'look', 'show me',
+        'gallery', 'photos', 'pictures', 'images', 'visual'
+    ];
+    
+    return virtualTourKeywords.some(keyword => message.includes(keyword));
+}
+
+function checkForWaitlistIntent(message) {
+    const waitlistKeywords = [
+        'waitlist', 'wait list', 'join', 'register', 'sign up',
+        'interested', 'available', 'notify', 'alert', 'reserve'
+    ];
+    
+    return waitlistKeywords.some(keyword => message.includes(keyword));
+}
+
+function handleVirtualTourRequest() {
+    // Show typing indicator
+    addBotMessage('', true);
+    
+    setTimeout(() => {
+        // Remove typing indicator
+        const chatMessages = document.getElementById('chatMessages');
+        const typingMessage = chatMessages.lastElementChild;
+        if (typingMessage && typingMessage.querySelector('.typing-indicator')) {
+            typingMessage.remove();
+        }
+        
+        // Add response with inline gallery
+        addBotMessage('Great! I\'ll show you our virtual tour gallery. Here you can see different storage unit options available.');
+        
+        setTimeout(() => {
+            addVirtualTourGallery();
+        }, 500);
+    }, 1500);
+}
+
+function showVirtualTourGallery() {
+    document.getElementById('virtualTourGallery').style.display = 'flex';
+}
+
+function closeVirtualTour() {
+    document.getElementById('virtualTourGallery').style.display = 'none';
+}
+
+function handleWaitlistRequest() {
+    // Show typing indicator
+    addBotMessage('', true);
+    
+    setTimeout(() => {
+        // Remove typing indicator
+        const chatMessages = document.getElementById('chatMessages');
+        const typingMessage = chatMessages.lastElementChild;
+        if (typingMessage && typingMessage.querySelector('.typing-indicator')) {
+            typingMessage.remove();
+        }
+        
+        // Add response with inline waitlist form
+        addBotMessage('I\'d be happy to help you join our waitlist! Please fill out the form below.');
+        
+        setTimeout(() => {
+            addWaitlistForm();
+        }, 500);
+    }, 1500);
+}
+
+function showWaitlistModal() {
+    document.getElementById('waitlistModal').style.display = 'block';
+}
+
+function closeWaitlistModal() {
+    document.getElementById('waitlistModal').style.display = 'none';
+}
+
+function openVirtualTour(url) {
+    window.open(url, '_blank');
+}
+
+function openWaitlistForm() {
+    window.open('https://forms.office.com/r/FBLuyQjwgG', '_blank');
+    closeWaitlistModal();
+    addBotMessage('I\'ve opened the waitlist form for you. Please fill it out to join our waitlist and we\'ll contact you when storage units become available.');
+}
+
+function addVirtualTourGallery() {
+    const chatMessages = document.getElementById('chatMessages');
+    const galleryDiv = document.createElement('div');
+    galleryDiv.className = 'message bot-message inline-gallery';
+    galleryDiv.innerHTML = `
+        <div class="message-avatar">
+            <img src="StorageAI_Logo.png" alt="StorageAI" class="bot-avatar-img">
+        </div>
+        <div class="message-content">
+            <div class="inline-gallery-container">
+                <div class="gallery-header">
+                    <h4>Virtual Tour Gallery</h4>
+                    <p>Explore our storage facilities</p>
+                </div>
+                <div class="gallery-carousel">
+                    <button class="carousel-arrow carousel-prev" onclick="changeGallerySlide(-1)" style="display: none;">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <div class="gallery-track">
+                        <div class="gallery-slide active">
+                            <div class="gallery-image-container">
+                                <img src="https://assets.cloudhi.io/media/c96b3f0f-8340-4234-81d5-5131676577b9/013dc124-6518-43de-8567-9c868c8ff49b/8cCZaTzOBeFmff4CBU31SyDEtFOno0lrUifUcxOj.jpg.webp" alt="Ulverstone Secure Storage">
+                                <div class="gallery-image-title">Ulverstone Secure Storage</div>
+                            </div>
+                            <div class="gallery-slide-content">
+                                <div class="gallery-details-scroll">
+                                    <p>Located at 45 Fieldings Way is the Ulverstone Secure Storage Facility. Comprising of over 80 units ranging from colourbond sheds with concrete floors to shipping containers, this facility has something for everyone.</p>
+                                    <p><strong>Security:</strong> Known for its high level of security with 24/7 CCTV, lights and keyed access, the facility is accessible to tenants at all hours of the day/night.</p>
+                                    <p><strong>Pricing:</strong> $226 per month for a large storage unit the size of a single garage, with some smaller containers available at $152 per month.</p>
+                                    <p><strong>Availability:</strong> With limited availability, we suggest you join the waitlist by completing the form linked at the bottom of this page.</p>
+                                </div>
+                                <button class="btn-primary gallery-btn" onclick="openVirtualTour('https://aus01.safelinks.protection.outlook.com/?url=https%3A%2F%2Fvirtual-tour.ipropertyexpress.com%2Fvt%2Ftour%2F3a602bd0-1aa7-4d55-8bf3-27832048ab66&data=05%7C02%7Cstorageup%40harcourts.com.au%7C6fa2e8af2658444da21308dcecd69ab3%7Cad59963c5d07405f9dce1dbdb4e4f139%7C0%7C0%7C638645653657778934%7CUnknown%7CTWFpbGZsb3d8eyJWIjoiMC4wLjAwMDAiLCJQIjoiV2luMzIiLCJBTiI6Ik1haWwiLCJXVCI6Mn0%3D%7C0%7C%7C%7C&sdata=e72Xp%2Fq3FUCuhKOYE6FlJbULLzL%2Fcp90gocXUIQzIU4%3D&reserved=0')">
+                                    <i class="fas fa-camera"></i> Virtual Tour
+                                </button>
+                            </div>
+                        </div>
+                        <div class="gallery-slide">
+                            <div class="gallery-image-container">
+                                <img src="https://assets.cloudhi.io/media/c96b3f0f-8340-4234-81d5-5131676577b9/013dc124-6518-43de-8567-9c868c8ff49b/ZKqlXkXfc4axjy7mUdMPmWpPkEzbV8yGQpbW1Ylc.jpg.webp" alt="Deegan Marine">
+                                <div class="gallery-image-title">Deegan Marine</div>
+                            </div>
+                            <div class="gallery-slide-content">
+                                <div class="gallery-details-scroll">
+                                    <p>Located at the roundabout on Eastland Drive, Deegan Marine houses shipping container storage for your convenience. With large and small options, there is something to suit everyone.</p>
+                                    <p><strong>Access:</strong> Accessible only during Deegan Marine business hours, this facility is ideal for the long haul or boat storage.</p>
+                                    <p><strong>Pricing:</strong> Priced from $120 per month.</p>
+                                    <p><strong>Availability:</strong> With limited availability, we suggest you join the waitlist by completing the form linked at the bottom of this page.</p>
+                                </div>
+                                <button class="btn-primary gallery-btn" onclick="openVirtualTour('https://aus01.safelinks.protection.outlook.com/?url=https%3A%2F%2Fvirtual-tour.ipropertyexpress.com%2Fvt%2Ftour%2Fb3b9ce51-5643-4565-93df-5e59e7f77285&data=05%7C02%7Cstorageup%40harcourts.com.au%7C8a803292c78f48408c4608dcecd6c5cd%7Cad59963c5d07405f9dce1dbdb4e4f139%7C0%7C0%7C638645654377476796%7CUnknown%7CTWFpbGZsb3d8eyJWIjoiMC4wLjAwMDAiLCJQIjoiV2luMzIiLCJBTiI6Ik1haWwiLCJXVCI6Mn0%3D%7C0%7C%7C%7C&sdata=IQwC0d1UB6y%2F8RVZSI2WaKW7y16Jc1mv0xD8qnZJ27g%3D&reserved=0')">
+                                    <i class="fas fa-camera"></i> Virtual Tour
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="carousel-arrow carousel-next" onclick="changeGallerySlide(1)">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+                <div class="gallery-dots">
+                    <span class="dot active" onclick="goToSlide(0)"></span>
+                    <span class="dot" onclick="goToSlide(1)"></span>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    chatMessages.appendChild(galleryDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    // Update total slides count dynamically and adjust track width
+    totalSlides = document.querySelectorAll('.gallery-slide').length;
+    updateCarouselDimensions();
+    
+    // Add animation
+    setTimeout(() => {
+        galleryDiv.style.opacity = '1';
+        galleryDiv.style.transform = 'translateY(0)';
+    }, 100);
+}
+
+function addWaitlistForm() {
+    const chatMessages = document.getElementById('chatMessages');
+    const formDiv = document.createElement('div');
+    formDiv.className = 'message bot-message inline-waitlist';
+    formDiv.innerHTML = `
+        <div class="message-avatar">
+            <img src="StorageAI_Logo.png" alt="StorageAI" class="bot-avatar-img">
+        </div>
+        <div class="message-content">
+            <div class="inline-waitlist-container">
+                <div class="waitlist-header">
+                    <h4>Want to join the waitlist?</h4>
+                    <p>Submit your interest here</p>
+                </div>
+                <div class="waitlist-body">
+                    <p>Get notified when storage units become available. We'll contact you as soon as a unit matching your needs becomes available.</p>
+                    <button class="btn-primary waitlist-btn" onclick="openWaitlistForm()">
+                        <i class="fas fa-external-link-alt"></i> Expressions of Interest
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    chatMessages.appendChild(formDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    // Add animation
+    setTimeout(() => {
+        formDiv.style.opacity = '1';
+        formDiv.style.transform = 'translateY(0)';
+    }, 100);
+}
+
+// Carousel navigation functions
+let currentSlide = 0;
+let totalSlides = 2; // Will be updated dynamically
+
+function changeGallerySlide(direction) {
+    const track = document.querySelector('.gallery-track');
+    const dots = document.querySelectorAll('.dot');
+    const prevArrow = document.querySelector('.carousel-prev');
+    const nextArrow = document.querySelector('.carousel-next');
+    
+    if (!track) return;
+    
+    currentSlide += direction;
+    
+    // Don't loop around - stop at boundaries
+    if (currentSlide >= totalSlides) currentSlide = totalSlides - 1;
+    if (currentSlide < 0) currentSlide = 0;
+    
+    // Move the track horizontally - calculate slide width dynamically
+    const slideWidth = 100 / totalSlides; // Each slide takes equal portion of track
+    track.style.transform = `translateX(-${currentSlide * slideWidth}%)`;
+    
+    // Update dots
+    dots.forEach((dot, index) => {
+        dot.classList.toggle('active', index === currentSlide);
+    });
+    
+    // Update arrow visibility
+    updateArrowVisibility(prevArrow, nextArrow);
+}
+
+function goToSlide(slideIndex) {
+    const track = document.querySelector('.gallery-track');
+    const dots = document.querySelectorAll('.dot');
+    const prevArrow = document.querySelector('.carousel-prev');
+    const nextArrow = document.querySelector('.carousel-next');
+    
+    if (!track) return;
+    
+    currentSlide = slideIndex;
+    
+    // Move the track horizontally - calculate slide width dynamically
+    const slideWidth = 100 / totalSlides; // Each slide takes equal portion of track
+    track.style.transform = `translateX(-${currentSlide * slideWidth}%)`;
+    
+    // Update dots
+    dots.forEach((dot, index) => {
+        dot.classList.toggle('active', index === currentSlide);
+    });
+    
+    // Update arrow visibility
+    updateArrowVisibility(prevArrow, nextArrow);
+}
+
+function updateArrowVisibility(prevArrow, nextArrow) {
+    if (!prevArrow || !nextArrow) return;
+    
+    // Show/hide arrows based on current position
+    prevArrow.style.display = currentSlide > 0 ? 'flex' : 'none';
+    nextArrow.style.display = currentSlide < totalSlides - 1 ? 'flex' : 'none';
+}
+
+function updateCarouselDimensions() {
+    const track = document.querySelector('.gallery-track');
+    if (!track) return;
+    
+    // Update track width based on number of slides
+    track.style.width = `${totalSlides * 100}%`;
+    
+    // Update slide width
+    const slides = document.querySelectorAll('.gallery-slide');
+    slides.forEach(slide => {
+        slide.style.width = `${100 / totalSlides}%`;
+    });
+}
+
+async function sendToWebhook(message) {
+    if (!hasUserInfo) {
+        addBotMessage('Please provide your name and email first before we can continue our conversation.');
+        return;
+    }
+    
+    isWaitingForResponse = true;
+    
+    // Show typing indicator
+    addBotMessage('', true);
+    
+    try {
+        const payload = {
+            message: message,
+            userInfo: userInfo,
+            sessionId: sessionId,
+            timestamp: new Date().toISOString(),
+            source: 'chatbot'
+        };
+        console.log('Webhook request →', WEBHOOK_URL, payload);
+        const response = await fetch(WEBHOOK_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        let data;
+        const text = await response.text();
+        try { data = JSON.parse(text); } catch { data = { text }; }
+        console.log('Webhook response ←', data);
+        
+        // Remove typing indicator
+        const chatMessages = document.getElementById('chatMessages');
+        const typingMessage = chatMessages.lastElementChild;
+        if (typingMessage && typingMessage.querySelector('.typing-indicator')) {
+            typingMessage.remove();
+        }
+        
+        // Process different response formats from n8n
+        let botResponse = 'I understand. How else can I help you?';
+        
+        // Check for n8n chat package response format
+        if (data.output) {
+            botResponse = data.output;
+        } else if (data.response) {
+            botResponse = data.response;
+        } else if (data.message) {
+            botResponse = data.message;
+        } else if (data.text) {
+            botResponse = data.text;
+        } else if (data.reply) {
+            botResponse = data.reply;
+        } else if (data.data && data.data.output) {
+            botResponse = data.data.output;
+        } else if (data.result) {
+            botResponse = data.result;
+        } else if (typeof data === 'string') {
+            botResponse = data;
+        } else if (Array.isArray(data) && data.length > 0) {
+            botResponse = data[0].output || data[0].message || data[0].text || data[0];
+        }
+        
+        console.log('Processed bot response:', botResponse);
+        
+        addBotMessage(botResponse);
+        
+    } catch (error) {
+        console.error('Error sending to webhook:', error);
+        
+        // Remove typing indicator
+        const chatMessages = document.getElementById('chatMessages');
+        const typingMessage = chatMessages.lastElementChild;
+        if (typingMessage && typingMessage.querySelector('.typing-indicator')) {
+            typingMessage.remove();
+        }
+        
+        // Add fallback response with quick actions
+        addBotMessage('I apologize, but I\'m having trouble connecting right now. You can use the quick action buttons below or try again later!');
+        addQuickActions();
+    } finally {
+        isWaitingForResponse = false;
+        updateSendButtonState();
+    }
+}
+
+// Close modals when clicking outside
+window.addEventListener('click', function(event) {
+    const userInfoModal = document.getElementById('userInfoModal');
+    const waitlistModal = document.getElementById('waitlistModal');
+    
+    if (event.target === userInfoModal) {
+        // Don't close user info modal - it's required
+    }
+    
+    if (event.target === waitlistModal) {
+        closeWaitlistModal();
+    }
+});
+
+// Close virtual tour gallery when clicking outside
+document.getElementById('virtualTourGallery').addEventListener('click', function(event) {
+    if (event.target === this) {
+        closeVirtualTour();
+    }
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(event) {
+    // Escape key to close modals
+    if (event.key === 'Escape') {
+        closeWaitlistModal();
+        closeVirtualTour();
+    }
+});
