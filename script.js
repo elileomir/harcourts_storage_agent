@@ -119,21 +119,16 @@ function addQuickActions() {
 }
 
 function handleQuickAction(action) {
-    const chatInput = document.getElementById('chatInput');
-    
     switch(action) {
         case 'virtual-tour':
-            chatInput.value = 'I want to see the virtual tour';
+            // Directly trigger virtual tour without webhook
+            handleVirtualTourRequest();
             break;
         case 'waitlist':
-            chatInput.value = 'I want to join the waitlist';
+            // Directly trigger waitlist without webhook
+            handleWaitlistRequest();
             break;
     }
-    
-    // Trigger input event to enable send button
-    chatInput.dispatchEvent(new Event('input'));
-    // Send the message
-    sendMessage();
 }
 
 function addBotMessage(text, isTyping = false) {
@@ -197,40 +192,11 @@ function sendMessage() {
     chatInput.value = '';
     document.getElementById('sendButton').disabled = true;
     
-    // Check for specific intents
-    const lowerMessage = message.toLowerCase();
-    
-    if (checkForVirtualTourIntent(lowerMessage)) {
-        handleVirtualTourRequest();
-        return;
-    }
-    
-    if (checkForWaitlistIntent(lowerMessage)) {
-        handleWaitlistRequest();
-        return;
-    }
-    
-    // Send to webhook for general conversation
+    // Send all user messages to webhook for general conversation
     sendToWebhook(message);
 }
 
-function checkForVirtualTourIntent(message) {
-    const virtualTourKeywords = [
-        'virtual tour', 'tour', 'see', 'view', 'look', 'show me',
-        'gallery', 'photos', 'pictures', 'images', 'visual'
-    ];
-    
-    return virtualTourKeywords.some(keyword => message.includes(keyword));
-}
-
-function checkForWaitlistIntent(message) {
-    const waitlistKeywords = [
-        'waitlist', 'wait list', 'join', 'register', 'sign up',
-        'interested', 'available', 'notify', 'alert', 'reserve'
-    ];
-    
-    return waitlistKeywords.some(keyword => message.includes(keyword));
-}
+// Removed keyword detection functions - Virtual Tour and Waitlist only accessible via quick actions
 
 function handleVirtualTourRequest() {
     // Show typing indicator
