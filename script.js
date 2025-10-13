@@ -7,6 +7,9 @@ let userInfo = {
 let isWaitingForResponse = false;
 let sessionId = generateSessionId();
 let hasUserInfo = false;
+let hasExistingBooking = false;
+let currentBookingData = null;
+let activeBookingForm = null;
 
 // Webhook URL
 const WEBHOOK_URL = 'https://hup.app.n8n.cloud/webhook/80351e0b-d9ed-4380-81d7-c8f284e566f4/chat';
@@ -37,6 +40,7 @@ function setupEventListeners() {
     if (waitlistForm) {
         waitlistForm.addEventListener('submit', handleWaitlistSubmit);
     }
+    
     
     // Chat input
     const chatInput = document.getElementById('chatInput');
@@ -128,6 +132,10 @@ function handleQuickAction(action) {
             // Directly trigger waitlist without webhook
             handleWaitlistRequest();
             break;
+        case 'book-now':
+            // Check for existing booking first
+            handleBookingRequest();
+            break;
     }
 }
 
@@ -164,6 +172,31 @@ function addBotMessage(text, isTyping = false) {
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
+function addBotMessageWithHTML(text, htmlContent = '') {
+    const chatMessages = document.getElementById('chatMessages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message bot-message';
+    
+    let contentHTML = `<p>${text}</p>`;
+    
+    // Add HTML content if provided
+    if (htmlContent && htmlContent.trim() !== '') {
+        contentHTML += `<div class="webhook-html-content">${htmlContent}</div>`;
+    }
+    
+    messageDiv.innerHTML = `
+        <div class="message-avatar">
+            <img src="StorageAI_Logo.png" alt="StorageAI" class="bot-avatar-img">
+        </div>
+        <div class="message-content">
+            ${contentHTML}
+        </div>
+    `;
+    
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
 function addUserMessage(text) {
     const chatMessages = document.getElementById('chatMessages');
     const messageDiv = document.createElement('div');
@@ -186,6 +219,9 @@ function sendMessage() {
     const message = chatInput.value.trim();
     
     if (!message || isWaitingForResponse) return;
+    
+    // Expire any active booking form when user sends a message
+    expireActiveBookingForm();
     
     // Add user message
     addUserMessage(message);
@@ -503,9 +539,26 @@ async function sendToWebhook(message) {
         
         // Process different response formats from n8n
         let botResponse = 'I understand. How else can I help you?';
+        let htmlContent = '';
         
-        // Check for n8n chat package response format
-        if (data.output) {
+        // Check for n8n chat package response format with plaintext/html structure
+        if (Array.isArray(data) && data.length > 0 && data[0].output) {
+            const output = data[0].output;
+            if (output.plaintext) {
+                botResponse = output.plaintext;
+            }
+            if (output.html && output.html.trim() !== '') {
+                htmlContent = output.html;
+            }
+        } else if (data.output && typeof data.output === 'object') {
+            // Handle single object response
+            if (data.output.plaintext) {
+                botResponse = data.output.plaintext;
+            }
+            if (data.output.html && data.output.html.trim() !== '') {
+                htmlContent = data.output.html;
+            }
+        } else if (data.output) {
             botResponse = data.output;
         } else if (data.response) {
             botResponse = data.response;
@@ -521,13 +574,16 @@ async function sendToWebhook(message) {
             botResponse = data.result;
         } else if (typeof data === 'string') {
             botResponse = data;
-        } else if (Array.isArray(data) && data.length > 0) {
-            botResponse = data[0].output || data[0].message || data[0].text || data[0];
         }
         
-        console.log('Processed bot response:', botResponse);
+        console.log('Processed bot response:', { botResponse, htmlContent });
         
-        addBotMessage(botResponse);
+        // Add the webhook response with HTML content if available
+        if (htmlContent) {
+            addBotMessageWithHTML(botResponse, htmlContent);
+        } else {
+            addBotMessage(botResponse);
+        }
         
     } catch (error) {
         console.error('Error sending to webhook:', error);
@@ -552,6 +608,7 @@ async function sendToWebhook(message) {
 window.addEventListener('click', function(event) {
     const userInfoModal = document.getElementById('userInfoModal');
     const waitlistModal = document.getElementById('waitlistModal');
+    const bookingDisclaimerModal = document.getElementById('bookingDisclaimerModal');
     
     if (event.target === userInfoModal) {
         // Don't close user info modal - it's required
@@ -559,6 +616,10 @@ window.addEventListener('click', function(event) {
     
     if (event.target === waitlistModal) {
         closeWaitlistModal();
+    }
+    
+    if (event.target === bookingDisclaimerModal) {
+        closeBookingDisclaimerModal();
     }
 });
 
@@ -575,5 +636,355 @@ document.addEventListener('keydown', function(event) {
     if (event.key === 'Escape') {
         closeWaitlistModal();
         closeVirtualTour();
+        closeBookingDisclaimerModal();
     }
 });
+
+// Booking Functions
+function handleBookingRequest() {
+    // Show typing indicator
+    addBotMessage('', true);
+    
+    setTimeout(() => {
+        // Remove typing indicator
+        const chatMessages = document.getElementById('chatMessages');
+        const typingMessage = chatMessages.lastElementChild;
+        if (typingMessage && typingMessage.querySelector('.typing-indicator')) {
+            typingMessage.remove();
+        }
+        
+        if (!hasUserInfo) {
+            addBotMessage('I\'d be happy to help you book a storage unit! First, please provide your name and email above, then I can help you with the booking process.');
+            return;
+        }
+        
+        // Expire any existing booking form
+        expireActiveBookingForm();
+        
+        if (hasExistingBooking) {
+            // Show confirmation for existing booking
+            addBotMessage('I see you already have a booking request. Would you like to edit your existing booking or create a new one?');
+            addBookingConfirmationButtons();
+        } else {
+            // Show booking form inline
+            addBotMessage('Great! I\'d be happy to help you book a storage unit. Please fill out the form below with your details.');
+            setTimeout(() => {
+                addBookingForm();
+            }, 500);
+        }
+    }, 1500);
+}
+
+function addBookingConfirmationButtons() {
+    const chatMessages = document.getElementById('chatMessages');
+    const buttonDiv = document.createElement('div');
+    buttonDiv.className = 'message bot-message booking-confirmation';
+    buttonDiv.innerHTML = `
+        <div class="message-avatar">
+            <img src="StorageAI_Logo.png" alt="StorageAI" class="bot-avatar-img">
+        </div>
+        <div class="message-content">
+            <div class="booking-confirmation-container">
+                <div class="booking-confirmation-buttons">
+                    <button class="btn-primary booking-confirm-btn" onclick="editExistingBooking()">
+                        <i class="fas fa-edit"></i> Edit Existing Booking
+                    </button>
+                    <button class="btn-secondary booking-confirm-btn" onclick="createNewBooking()">
+                        <i class="fas fa-plus"></i> Book Another Storage
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    chatMessages.appendChild(buttonDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    // Add animation
+    setTimeout(() => {
+        buttonDiv.style.opacity = '1';
+        buttonDiv.style.transform = 'translateY(0)';
+    }, 100);
+}
+
+function editExistingBooking() {
+    // Expire any existing form and create new one with existing data
+    expireActiveBookingForm();
+    addBotMessage('I\'ll help you edit your existing booking. Please update the details below.');
+    setTimeout(() => {
+        addBookingForm(currentBookingData);
+    }, 500);
+}
+
+function createNewBooking() {
+    // Expire any existing form and create new one
+    expireActiveBookingForm();
+    addBotMessage('I\'ll help you create a new booking. Please fill out the details below.');
+    setTimeout(() => {
+        addBookingForm();
+    }, 500);
+}
+
+function addBookingForm(existingData = null) {
+    const chatMessages = document.getElementById('chatMessages');
+    const formDiv = document.createElement('div');
+    formDiv.className = 'message bot-message inline-booking';
+    formDiv.id = 'activeBookingForm';
+    
+    // Store reference to active form
+    activeBookingForm = formDiv;
+    
+    formDiv.innerHTML = `
+        <div class="message-avatar">
+            <img src="StorageAI_Logo.png" alt="StorageAI" class="bot-avatar-img">
+        </div>
+        <div class="message-content">
+            <div class="inline-booking-container">
+                <div class="booking-header">
+                    <h4>Book Storage Unit</h4>
+                    <p>Please fill out the details below to book your storage unit</p>
+                </div>
+                <form id="inlineBookingForm" onsubmit="handleInlineBookingSubmit(event)">
+                    <div class="form-group">
+                        <label for="inlineFacility">Facility/Site *</label>
+                        <select id="inlineFacility" name="facility" required>
+                            <option value="">Select a facility</option>
+                            <option value="Deegan Marine" ${existingData && existingData.facility === 'Deegan Marine' ? 'selected' : ''}>Deegan Marine</option>
+                            <option value="45 Fieldings Way" ${existingData && existingData.facility === '45 Fieldings Way' ? 'selected' : ''}>45 Fieldings Way</option>
+                            <option value="780 South Road" ${existingData && existingData.facility === '780 South Road' ? 'selected' : ''}>780 South Road</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="inlineUnitNumber">Unit Number *</label>
+                        <input type="text" id="inlineUnitNumber" name="unitNumber" required placeholder="Enter unit number" value="${existingData ? existingData.unit : ''}">
+                    </div>
+                    <div class="form-group">
+                        <label for="inlineBondAmount">Bond Amount *</label>
+                        <input type="number" id="inlineBondAmount" name="bondAmount" required placeholder="Enter bond amount" min="0" step="0.01" value="${existingData ? existingData.bond : ''}">
+                    </div>
+                    <div class="form-group">
+                        <label for="inlineMonthlyAmount">Monthly Amount *</label>
+                        <input type="number" id="inlineMonthlyAmount" name="monthlyAmount" required placeholder="Enter monthly amount" min="0" step="0.01" value="${existingData ? existingData.monthly : ''}">
+                    </div>
+                    <div class="form-group">
+                        <label for="inlineLeaseStartDate">Lease Start Date *</label>
+                        <input type="date" id="inlineLeaseStartDate" name="leaseStartDate" required value="${existingData ? existingData.leaseStartDate : ''}">
+                    </div>
+                    <div class="booking-form-actions">
+                        <button type="button" class="btn-secondary" onclick="expireActiveBookingForm()">Cancel</button>
+                        <button type="submit" class="btn-primary">Submit Booking</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    
+    chatMessages.appendChild(formDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    // Add animation
+    setTimeout(() => {
+        formDiv.style.opacity = '1';
+        formDiv.style.transform = 'translateY(0)';
+    }, 100);
+}
+
+function expireActiveBookingForm() {
+    if (activeBookingForm) {
+        // Change form to expired state
+        const formContainer = activeBookingForm.querySelector('.inline-booking-container');
+        if (formContainer) {
+            formContainer.innerHTML = `
+                <div class="booking-expired">
+                    <div class="expired-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <h4>Form Expired</h4>
+                    <p>This form has expired. Kindly click "Book Now" to initiate again.</p>
+                </div>
+            `;
+        }
+        activeBookingForm = null;
+    }
+}
+
+function showBookingDisclaimerModal() {
+    document.getElementById('bookingDisclaimerModal').style.display = 'block';
+}
+
+function closeBookingDisclaimerModal() {
+    document.getElementById('bookingDisclaimerModal').style.display = 'none';
+}
+
+function handleInlineBookingSubmit(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(e.target);
+    const bookingData = {
+        facility: formData.get('facility'),
+        unit: formData.get('unitNumber'),
+        bond: formData.get('bondAmount'),
+        monthly: formData.get('monthlyAmount'),
+        leaseStartDate: formData.get('leaseStartDate')
+    };
+    
+    // Store booking data temporarily
+    currentBookingData = bookingData;
+    
+    // Show disclaimer modal
+    showBookingDisclaimerModal();
+}
+
+function confirmBooking() {
+    // Close disclaimer modal
+    closeBookingDisclaimerModal();
+    
+    // Show submitted state in the form
+    showBookingSubmittedState();
+    
+    // Mark as having existing booking
+    hasExistingBooking = true;
+    
+    // Send booking to webhook (this will handle the response)
+    sendBookingToWebhook();
+}
+
+function showBookingSubmittedState() {
+    if (activeBookingForm) {
+        const formContainer = activeBookingForm.querySelector('.inline-booking-container');
+        if (formContainer) {
+            formContainer.innerHTML = `
+                <div class="booking-submitted">
+                    <div class="submitted-icon">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <h4>Booking Submitted</h4>
+                    <p>Your booking request has been submitted successfully!</p>
+                    <div class="submitted-details">
+                        <p><strong>Facility:</strong> ${currentBookingData.facility}</p>
+                        <p><strong>Unit:</strong> ${currentBookingData.unit}</p>
+                        <p><strong>Bond:</strong> $${currentBookingData.bond}</p>
+                        <p><strong>Monthly:</strong> $${currentBookingData.monthly}</p>
+                        <p><strong>Start Date:</strong> ${currentBookingData.leaseStartDate}</p>
+                    </div>
+                </div>
+            `;
+        }
+        activeBookingForm = null;
+    }
+}
+
+async function sendBookingToWebhook() {
+    if (!hasUserInfo) {
+        addBotMessage('Please provide your name and email first before we can continue our conversation.');
+        return;
+    }
+    
+    // Show typing indicator while waiting for webhook response
+    addBotMessage('', true);
+    
+    try {
+        const payload = {
+            message: "I'm going to book",
+            userInfo: userInfo,
+            booking: currentBookingData || {
+                facility: "",
+                unit: "",
+                bond: "",
+                monthly: "",
+                leaseStartDate: ""
+            },
+            sessionId: sessionId,
+            timestamp: new Date().toISOString(),
+            source: 'chatbot'
+        };
+        
+        console.log('Booking webhook request →', WEBHOOK_URL, payload);
+        
+        const response = await fetch(WEBHOOK_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        let data;
+        const text = await response.text();
+        try { 
+            data = JSON.parse(text); 
+        } catch { 
+            data = { text }; 
+        }
+        console.log('Booking webhook response ←', data);
+        
+        // Remove typing indicator
+        const chatMessages = document.getElementById('chatMessages');
+        const typingMessage = chatMessages.lastElementChild;
+        if (typingMessage && typingMessage.querySelector('.typing-indicator')) {
+            typingMessage.remove();
+        }
+        
+        // Process different response formats from n8n
+        let botResponse = 'Thank you for your booking request! Our team will review your details and contact you shortly to confirm availability and complete the booking process.';
+        let htmlContent = '';
+        
+        // Check for n8n chat package response format with plaintext/html structure
+        if (Array.isArray(data) && data.length > 0 && data[0].output) {
+            const output = data[0].output;
+            if (output.plaintext) {
+                botResponse = output.plaintext;
+            }
+            if (output.html && output.html.trim() !== '') {
+                htmlContent = output.html;
+            }
+        } else if (data.output && typeof data.output === 'object') {
+            // Handle single object response
+            if (data.output.plaintext) {
+                botResponse = data.output.plaintext;
+            }
+            if (data.output.html && data.output.html.trim() !== '') {
+                htmlContent = data.output.html;
+            }
+        } else if (data.output) {
+            botResponse = data.output;
+        } else if (data.response) {
+            botResponse = data.response;
+        } else if (data.message) {
+            botResponse = data.message;
+        } else if (data.text) {
+            botResponse = data.text;
+        } else if (data.reply) {
+            botResponse = data.reply;
+        } else if (data.data && data.data.output) {
+            botResponse = data.data.output;
+        } else if (data.result) {
+            botResponse = data.result;
+        } else if (typeof data === 'string') {
+            botResponse = data;
+        }
+        
+        console.log('Processed booking bot response:', { botResponse, htmlContent });
+        
+        // Add the webhook response as a bot message with HTML content if available
+        addBotMessageWithHTML(botResponse, htmlContent);
+        
+    } catch (error) {
+        console.error('Error sending booking to webhook:', error);
+        
+        // Remove typing indicator
+        const chatMessages = document.getElementById('chatMessages');
+        const typingMessage = chatMessages.lastElementChild;
+        if (typingMessage && typingMessage.querySelector('.typing-indicator')) {
+            typingMessage.remove();
+        }
+        
+        // Add fallback response
+        addBotMessage('I apologize, but there was an issue submitting your booking. Please try again or contact us directly.');
+    }
+}

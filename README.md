@@ -160,3 +160,4 @@ For technical support or customization requests, please refer to the n8n documen
 ---
 
 **Note**: This chatbot is designed to be a drop-in replacement for the existing "Ulverstone Secure Storage" section. All functionality is self-contained and requires minimal integration with the existing website.
+

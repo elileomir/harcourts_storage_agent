@@ -51,6 +51,28 @@
         </div>
     </div>
 
+
+    <!-- Booking Disclaimer Modal -->
+    <div id="bookingDisclaimerModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Booking Disclaimer</h3>
+                <p>Please read and confirm the following</p>
+            </div>
+            <div class="modal-body" style="padding: 24px;">
+                <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3b82f6;">
+                    <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #333;">
+                        <strong>Important:</strong> By submitting this booking request, you acknowledge that your information will be logged in our system for processing. Our team will review your request and contact you to confirm availability and complete the booking process.
+                    </p>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeBookingDisclaimerModal()">Cancel</button>
+                    <button type="button" class="btn-primary" onclick="confirmBooking()">Confirm & Submit</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Chatbot Container -->
     <div class="chatbot-container">
         <div class="chatbot-header">
@@ -77,6 +99,10 @@
                         <button class="quick-action-btn" onclick="handleQuickAction('waitlist')">
                             <i class="fas fa-list"></i>
                             Join Waitlist
+                        </button>
+                        <button class="quick-action-btn" onclick="handleQuickAction('book-now')">
+                            <i class="fas fa-calendar-check"></i>
+                            Book Now
                         </button>
                     </div>
                 </div>
