@@ -502,6 +502,53 @@ body {
     margin: 4px 0;
 }
 
+/* Styles for complex HTML content from webhooks (tables, lists) */
+.message-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+    font-size: 14px;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.message-content table thead {
+    background-color: #f3f4f6;
+    color: #374151;
+    font-weight: 600;
+}
+
+.message-content table th,
+.message-content table td {
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.message-content table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.message-content table tbody tr:nth-child(even) {
+    background-color: #f9fafb;
+}
+
+.message-content table tbody tr:hover {
+    background-color: #f3f4f6;
+}
+
+.message-content ul,
+.message-content ol {
+    margin: 12px 0;
+    padding-left: 25px;
+}
+
+.message-content li {
+    margin-bottom: 6px;
+    line-height: 1.5;
+}
+
 /* Chat Input */
 .chatbot-input-container {
     padding: 20px;
@@ -524,6 +571,12 @@ body {
     font-size: 16px;
     outline: none;
     transition: border-color 0.3s ease;
+    resize: none; /* Disable manual resizing */
+    font-family: inherit; /* Ensure font matches the rest of the app */
+    line-height: 1.5;
+    field-sizing: content; /* Modern, flicker-free auto-sizing */
+    max-height: 120px; /* Still useful as a constraint */
+    overflow-y: auto; /* Browser handles this with field-sizing */
 }
 
 #chatInput:focus {
@@ -1339,14 +1392,14 @@ body {
 
 .webhook-html-content p {
     margin: 0;
-    padding: 20px 20px 0 20px;
-    line-height: 1.6;
-    color: #374151;
-    font-size: 15px;
+    padding: 0;
+    line-height: 1.5;
+    color: inherit;
+    font-size: inherit;
 }
 
 .webhook-html-content p:last-child {
-    padding-bottom: 20px;
+    padding-bottom: 0;
 }
 
 .webhook-html-content ul {

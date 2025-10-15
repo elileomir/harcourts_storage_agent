@@ -215,6 +215,7 @@ function setupEventListeners() {
     // Input change handler
     chatInput.addEventListener('input', function() {
         updateSendButtonState();
+        // The auto-resizing is now handled by CSS `field-sizing: content`
     });
     
     // Initialize send button state once listeners are attached
@@ -305,7 +306,7 @@ function setQuickActionStatus(message) {
     // Use inline indicator for quick actions (no header changes)
     renderInlineStatus(message, 'typing');
     setTimeout(() => {
-        setOnlineStatus();
+        removeInlineStatus();
     }, 1500);
 }
 
@@ -313,9 +314,11 @@ function addBotMessage(text, isTyping = false) {
     const chatMessages = document.getElementById('chatMessages');
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message bot-message';
-    
+
+    let content;
     if (isTyping) {
-        messageDiv.innerHTML = `
+        // This part is for the typing indicator
+        content = `
             <div class="message-avatar">
                 <img src="StorageAI_Logo.png" alt="StorageAI" class="bot-avatar-img">
             </div>
@@ -328,41 +331,19 @@ function addBotMessage(text, isTyping = false) {
             </div>
         `;
     } else {
-        messageDiv.innerHTML = `
+        // If the text is already HTML, use it directly. Otherwise, wrap in <p>.
+        const innerHTML = /<[a-z][\s\S]*>/i.test(text) ? text : `<p>${escapeHtml(text)}</p>`;
+        content = `
             <div class="message-avatar">
                 <img src="StorageAI_Logo.png" alt="StorageAI" class="bot-avatar-img">
             </div>
             <div class="message-content">
-                <p>${text}</p>
+                ${innerHTML}
             </div>
         `;
     }
-    
-    chatMessages.appendChild(messageDiv);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-}
 
-function addBotMessageWithHTML(text, htmlContent = '') {
-    const chatMessages = document.getElementById('chatMessages');
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'message bot-message';
-    
-    let contentHTML = `<p>${text}</p>`;
-    
-    // Add HTML content if provided
-    if (htmlContent && htmlContent.trim() !== '') {
-        contentHTML += `<div class="webhook-html-content">${htmlContent}</div>`;
-    }
-    
-    messageDiv.innerHTML = `
-        <div class="message-avatar">
-            <img src="StorageAI_Logo.png" alt="StorageAI" class="bot-avatar-img">
-        </div>
-        <div class="message-content">
-            ${contentHTML}
-        </div>
-    `;
-    
+    messageDiv.innerHTML = content;
     chatMessages.appendChild(messageDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
@@ -401,6 +382,8 @@ function sendMessage() {
     // Send all user messages to webhook for general conversation
     sendToWebhook(message);
 }
+
+// The auto-resize function is no longer needed thanks to `field-sizing: content` in CSS.
 
 // Removed keyword detection functions - Virtual Tour and Waitlist only accessible via quick actions
 
@@ -501,7 +484,7 @@ function addVirtualTourGallery() {
                                     <p><strong>Pricing:</strong> $226 per month for a large storage unit the size of a single garage, with some smaller containers available at $152 per month.</p>
                                     <p><strong>Availability:</strong> With limited availability, we suggest you join the waitlist by completing the form linked at the bottom of this page.</p>
                                 </div>
-                                <button class="btn-primary gallery-btn" onclick="openVirtualTour('https://aus01.safelinks.protection.outlook.com/?url=https%3A%2F%2Fvirtual-tour.ipropertyexpress.com%2Fvt%2Ftour%2F3a602bd0-1aa7-4d55-8bf3-27832048ab66&data=05%7C02%7Cstorageup%40harcourts.com.au%7C6fa2e8af2658444da21308dcecd69ab3%7Cad59963c5d07405f9dce1dbdb4e4f139%7C0%7C0%7C638645653657778934%7CUnknown%7CTWFpbGZsb3d8eyJWIjoiMC4wLjAwMDAiLCJQIjoiV2luMzIiLCJBTiI6Ik1haWwiLCJXVCI6Mn0%3D%7C0%7C%7C%7C&sdata=e72Xp%2Fq3FUCuhKOYE6FlJbULLzL%2Fcp90gocXUIQzIU4%3D&reserved=0')">
+                                <button class="btn-primary gallery-btn" onclick="openVirtualTour('https://aus01.safelinks.protection.outlook.com/?url=https%3A%2F%2Fvirtual-tour.ipropertyexpress.com%2Fvt%2Ftour%2F3a602bd0-1aa7-4d55-8bf3-27832048ab66&data=05%7C02%7Cstorageup%40harcourts.com.au%7C6fa2e8af265844da21308dcecd69ab3%7Cad59963c5d07405f9dce1dbdb4e4f139%7C0%7C0%7C638645653657778934%7CUnknown%7CTWFpbGZsb3d8eyJWIjoiMC4wLjAwMDAiLCJQIjoiV2luMzIiLCJBTiI6Ik1haWwiLCJXVCI6Mn0%3D%7C0%7C%7C%7C&sdata=e72Xp%2Fq3FUCuhKOYE6FlJbULLzL%2Fcp90gocXUIQzIU4%3D&reserved=0')">
                                     <i class="fas fa-camera"></i> Virtual Tour
                                 </button>
                             </div>
@@ -662,7 +645,7 @@ function updateCarouselDimensions() {
 
 async function sendToWebhook(message) {
     if (!hasUserInfo) {
-        addBotMessage('Please provide your name and email first before we can continue our conversation.');
+        addBotMessage('Please provide your name and email first.');
         return;
     }
     
@@ -673,95 +656,49 @@ async function sendToWebhook(message) {
     setThinkingStatus();
     
     try {
-        const payload = {
-            message: message,
-            userInfo: userInfo,
-            sessionId: sessionId,
-            timestamp: new Date().toISOString(),
-            source: 'chatbot'
-        };
-        console.log('Webhook request →', WEBHOOK_URL, payload);
         const response = await fetch(WEBHOOK_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json',
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({
+                message: message,
+                userInfo: userInfo,
+                sessionId: sessionId,
+                timestamp: new Date().toISOString(),
+                source: 'chatbot'
+            }),
         });
         
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        let data;
-        const text = await response.text();
-        try { data = JSON.parse(text); } catch { data = { text }; }
-        console.log('Webhook response ←', data);
-        
-        // Remove waiting indicators and set online status
-        const chatMessages = document.getElementById('chatMessages');
-        removeInlineStatus();
+        const data = await response.json();
+        console.log('Webhook response:', data);
+
+        // Remove typing bubble and inline status
         removeTypingBubble();
-        setOnlineStatus();
-        
-        // Process webhook response - always expect HTML format
-        let htmlContent = '';
-        
-        // Prefer new format: array with output.response
-        if (Array.isArray(data) && data.length > 0 && data[0].output) {
-            const output = data[0].output;
-            if (typeof output.response === 'string' && output.response.trim() !== '') {
-                htmlContent = ensureHtmlString(output.response);
-            } else if (typeof output.html === 'string' && output.html.trim() !== '') {
-                htmlContent = output.html;
-            } else if (typeof output.plaintext === 'string' && output.plaintext.trim() !== '') {
-                htmlContent = ensureHtmlString(output.plaintext);
-            }
-        } else if (data.output && typeof data.output === 'object') {
-            // Handle single object response
-            if (typeof data.output.response === 'string' && data.output.response.trim() !== '') {
-                htmlContent = ensureHtmlString(data.output.response);
-            } else if (typeof data.output.html === 'string' && data.output.html.trim() !== '') {
-                htmlContent = data.output.html;
-            } else if (typeof data.output.plaintext === 'string' && data.output.plaintext.trim() !== '') {
-                htmlContent = ensureHtmlString(data.output.plaintext);
-            }
-        } else if (typeof data === 'string') {
-            htmlContent = ensureHtmlString(data);
-        } else if (data.output || data.response || data.message || data.text || data.reply || (data.data && data.data.output) || data.result) {
-            const fallback = data.output || data.response || data.message || data.text || data.reply || (data.data && data.data.output) || data.result;
-            htmlContent = ensureHtmlString(String(fallback));
+        removeInlineStatus();
+
+        // The webhook returns an object, so we access it directly.
+        if (data && data.output && data.output.response) {
+            const botResponse = data.output.response;
+            addBotMessage(botResponse);
+        } else {
+            addBotMessage('I received an empty response. Please try again.');
         }
         
-        console.log('Processed bot response:', { htmlContent });
-        
-        // Classify and add the webhook response as HTML content
-        addBotMessageWithHTML('', classifyWebhookHtml(htmlContent));
-        
     } catch (error) {
-        console.error('Error sending to webhook:', error);
-        
-        // Remove waiting indicators and set offline status
-        const chatMessages = document.getElementById('chatMessages');
-        removeInlineStatus();
+        console.error('Webhook error:', error);
+        // Remove typing bubble and inline status
         removeTypingBubble();
+        removeInlineStatus();
+        addBotMessage('Sorry, I encountered an error. Please try again later.');
         setOfflineStatus();
-        
-        // Australian-style error messages
-        const aussieMessages = [
-            "Oh mate, I'm away at the moment! Either I'm updating my resources or improving to better help you. Give me a sec and try again, yeah?",
-            "Crikey! I'm having a bit of a moment here. I'm either updating my knowledge base or working on being a better assistant. Hang tight and give it another go!",
-            "Fair dinkum, I'm not quite myself right now! I'm either refreshing my resources or getting better at helping you out. Try again in a moment, mate!",
-            "Blimey! I'm having a bit of trouble connecting. I'm either updating my systems or improving my responses. Give me a tick and try again!",
-            "Stone the flamin' crows! I'm away updating my resources or getting better at helping you. Try again in a moment, will ya?"
-        ];
-        
-        const randomMessage = aussieMessages[Math.floor(Math.random() * aussieMessages.length)];
-        addBotMessage(randomMessage);
-        addQuickActions();
     } finally {
         isWaitingForResponse = false;
+        setOnlineStatus();
         updateSendButtonState();
     }
 }
@@ -1122,7 +1059,7 @@ async function sendBookingToWebhook() {
         console.log('Processed booking bot response:', { htmlContent });
         
         // Classify and add the webhook response as HTML content
-        addBotMessageWithHTML('', classifyWebhookHtml(htmlContent));
+        addBotMessage('', classifyWebhookHtml(htmlContent));
         
     } catch (error) {
         console.error('Error sending booking to webhook:', error);
