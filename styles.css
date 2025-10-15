@@ -1336,15 +1336,6 @@ body {
 }
 
 /* Webhook HTML Content Styles */
-.webhook-html-content {
-    margin-top: 16px;
-    border-radius: 12px;
-    overflow: hidden;
-    background: white;
-    border: 1px solid #e2e8f0;
-    padding: 0;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
 
 .webhook-html-content p {
     margin: 0;
