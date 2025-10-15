@@ -11,12 +11,84 @@ let hasExistingBooking = false;
 let currentBookingData = null;
 let activeBookingForm = null;
 
+// Status management
+let statusTimeout = null;
+let inlineStatusElement = null;
+let typingBubbleElement = null;
+
 // Webhook URL
 const WEBHOOK_URL = 'https://hup.app.n8n.cloud/webhook/80351e0b-d9ed-4380-81d7-c8f284e566f4/chat';
 
 // Generate unique session ID
 function generateSessionId() {
     return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
+// Status management functions
+function updateStatus(status, message = '') {
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    const statusMessage = document.getElementById('statusMessage');
+    const header = document.querySelector('.chatbot-header');
+    
+    if (statusDot && statusText && statusMessage && header) {
+        // Header always shows Online dot/text; indicators are inline below chat
+        statusDot.className = 'status-dot online';
+        statusText.textContent = 'Online';
+        statusText.style.color = '#10b981'; // Always keep green
+        // Render inline indicator below chat bubble (text-only)
+        if (message) renderInlineStatus(message, status); else removeInlineStatus();
+        // Keep header clean/centered, no header message
+        statusMessage.textContent = '';
+        statusMessage.classList.remove('status-message-visible');
+        header.classList.add('centered');
+    }
+}
+
+function renderInlineStatus(text, animStatus = 'typing') {
+    const chatMessages = document.getElementById('chatMessages');
+    if (!chatMessages) return;
+    // Remove previous one
+    removeInlineStatus();
+    inlineStatusElement = document.createElement('div');
+    inlineStatusElement.className = 'inline-status';
+    inlineStatusElement.innerHTML = `
+        <span class="inline-status-text ${animStatus}">${escapeHtml(String(text))}</span>
+    `;
+    chatMessages.appendChild(inlineStatusElement);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function removeInlineStatus() {
+    if (inlineStatusElement && inlineStatusElement.parentNode) {
+        inlineStatusElement.parentNode.removeChild(inlineStatusElement);
+    }
+    inlineStatusElement = null;
+}
+
+function setThinkingStatus() {
+    updateStatus('thinking', 'Thinking...');
+    
+    // After 2 seconds, change to typing
+    if (statusTimeout) clearTimeout(statusTimeout);
+    statusTimeout = setTimeout(() => {
+        updateStatus('typing', 'Typing...');
+        
+        // After 3 more seconds, change to almost done
+        statusTimeout = setTimeout(() => {
+            updateStatus('almost-done', 'Almost done...');
+        }, 3000);
+    }, 2000);
+}
+
+function setOnlineStatus() {
+    if (statusTimeout) clearTimeout(statusTimeout);
+    updateStatus('online', '');
+}
+
+function setOfflineStatus() {
+    if (statusTimeout) clearTimeout(statusTimeout);
+    updateStatus('offline', '');
 }
 
 // Initialize the chatbot
@@ -27,6 +99,90 @@ document.addEventListener('DOMContentLoaded', function() {
     // Setup event listeners
     setupEventListeners();
 });
+
+// Typing bubble helpers
+function showTypingBubble() {
+    const chatMessages = document.getElementById('chatMessages');
+    if (!chatMessages) return;
+    removeTypingBubble();
+    const wrapper = document.createElement('div');
+    wrapper.className = 'message bot-message';
+    wrapper.innerHTML = `
+        <div class="message-avatar">
+            <img src="StorageAI_Logo.png" alt="StorageAI" class="bot-avatar-img">
+        </div>
+        <div class="message-content">
+            <div class="typing-indicator">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
+        </div>
+    `;
+    chatMessages.appendChild(wrapper);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    typingBubbleElement = wrapper;
+}
+
+function removeTypingBubble() {
+    if (typingBubbleElement && typingBubbleElement.parentNode) {
+        typingBubbleElement.parentNode.removeChild(typingBubbleElement);
+    }
+    typingBubbleElement = null;
+}
+
+// Helper: Ensure a string is HTML; if plain text, escape and wrap in <p>
+function ensureHtmlString(value) {
+    const str = String(value);
+    if (/<[^>]+>/.test(str)) return str;
+    return `<p>${escapeHtml(str)}</p>`;
+}
+
+// Helper: Minimal HTML escape for plain text fallback
+function escapeHtml(s) {
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// Helper: Classify webhook HTML into card / table / list and wrap with variant class
+function classifyWebhookHtml(htmlString) {
+    try {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = (htmlString || '').trim();
+        const root = tmp.firstElementChild;
+        const hasTable = !!tmp.querySelector('table');
+        const hasList = !!tmp.querySelector('ul, ol');
+        const hasVariantAlready = root && (
+            root.classList.contains('webhook-card') ||
+            root.classList.contains('webhook-table') ||
+            root.classList.contains('webhook-list')
+        );
+
+        if (hasVariantAlready) {
+            return tmp.innerHTML;
+        }
+
+        let variant = '';
+        if (root && root.classList.contains('card')) {
+            variant = 'webhook-card';
+        } else if (hasTable) {
+            variant = 'webhook-table';
+        } else if (hasList) {
+            variant = 'webhook-list';
+        } else {
+            variant = 'webhook-card';
+        }
+
+        return `<div class="${variant}">${tmp.innerHTML}</div>`;
+    } catch (e) {
+        const safe = ensureHtmlString(String(htmlString || ''));
+        return `<div class="webhook-card">${safe}</div>`;
+    }
+}
 
 function setupEventListeners() {
     // User info form submission
@@ -126,17 +282,31 @@ function handleQuickAction(action) {
     switch(action) {
         case 'virtual-tour':
             // Directly trigger virtual tour without webhook
+            expireActiveBookingForm();
+            setQuickActionStatus('Loading virtual tour...');
             handleVirtualTourRequest();
             break;
         case 'waitlist':
             // Directly trigger waitlist without webhook
+            expireActiveBookingForm();
+            setQuickActionStatus('Preparing waitlist form...');
             handleWaitlistRequest();
             break;
         case 'book-now':
             // Check for existing booking first
+            expireActiveBookingForm();
+            setQuickActionStatus('Setting up booking...');
             handleBookingRequest();
             break;
     }
+}
+
+function setQuickActionStatus(message) {
+    // Use inline indicator for quick actions (no header changes)
+    renderInlineStatus(message, 'typing');
+    setTimeout(() => {
+        setOnlineStatus();
+    }, 1500);
 }
 
 function addBotMessage(text, isTyping = false) {
@@ -235,16 +405,15 @@ function sendMessage() {
 // Removed keyword detection functions - Virtual Tour and Waitlist only accessible via quick actions
 
 function handleVirtualTourRequest() {
-    // Show typing indicator
-    addBotMessage('', true);
+    // Show typing bubble first, then set thinking status (inline appears below)
+    showTypingBubble();
+    setThinkingStatus();
     
     setTimeout(() => {
-        // Remove typing indicator
-        const chatMessages = document.getElementById('chatMessages');
-        const typingMessage = chatMessages.lastElementChild;
-        if (typingMessage && typingMessage.querySelector('.typing-indicator')) {
-            typingMessage.remove();
-        }
+        // Remove typing indicator and set online status
+        removeTypingBubble();
+        removeInlineStatus();
+        setOnlineStatus();
         
         // Add response with inline gallery
         addBotMessage('Great! I\'ll show you our virtual tour gallery. Here you can see different storage unit options available.');
@@ -264,16 +433,15 @@ function closeVirtualTour() {
 }
 
 function handleWaitlistRequest() {
-    // Show typing indicator
-    addBotMessage('', true);
+    // Show typing bubble first, then set thinking status (inline appears below)
+    showTypingBubble();
+    setThinkingStatus();
     
     setTimeout(() => {
-        // Remove typing indicator
-        const chatMessages = document.getElementById('chatMessages');
-        const typingMessage = chatMessages.lastElementChild;
-        if (typingMessage && typingMessage.querySelector('.typing-indicator')) {
-            typingMessage.remove();
-        }
+        // Remove typing indicator and set online status
+        removeTypingBubble();
+        removeInlineStatus();
+        setOnlineStatus();
         
         // Add response with inline waitlist form
         addBotMessage('I\'d be happy to help you join our waitlist! Please fill out the form below.');
@@ -500,8 +668,9 @@ async function sendToWebhook(message) {
     
     isWaitingForResponse = true;
     
-    // Show typing indicator
-    addBotMessage('', true);
+    // Show typing bubble first, then set thinking status (inline appears below)
+    showTypingBubble();
+    setThinkingStatus();
     
     try {
         const payload = {
@@ -530,73 +699,66 @@ async function sendToWebhook(message) {
         try { data = JSON.parse(text); } catch { data = { text }; }
         console.log('Webhook response ←', data);
         
-        // Remove typing indicator
+        // Remove waiting indicators and set online status
         const chatMessages = document.getElementById('chatMessages');
-        const typingMessage = chatMessages.lastElementChild;
-        if (typingMessage && typingMessage.querySelector('.typing-indicator')) {
-            typingMessage.remove();
-        }
+        removeInlineStatus();
+        removeTypingBubble();
+        setOnlineStatus();
         
-        // Process different response formats from n8n
-        let botResponse = 'I understand. How else can I help you?';
+        // Process webhook response - always expect HTML format
         let htmlContent = '';
-        
-        // Check for n8n chat package response format with plaintext/html structure
+
+        // Prefer new format: array with output.response
         if (Array.isArray(data) && data.length > 0 && data[0].output) {
             const output = data[0].output;
-            if (output.plaintext) {
-                botResponse = output.plaintext;
-            }
-            if (output.html && output.html.trim() !== '') {
+            if (typeof output.response === 'string' && output.response.trim() !== '') {
+                htmlContent = ensureHtmlString(output.response);
+            } else if (typeof output.html === 'string' && output.html.trim() !== '') {
                 htmlContent = output.html;
+            } else if (typeof output.plaintext === 'string' && output.plaintext.trim() !== '') {
+                htmlContent = ensureHtmlString(output.plaintext);
             }
         } else if (data.output && typeof data.output === 'object') {
             // Handle single object response
-            if (data.output.plaintext) {
-                botResponse = data.output.plaintext;
-            }
-            if (data.output.html && data.output.html.trim() !== '') {
+            if (typeof data.output.response === 'string' && data.output.response.trim() !== '') {
+                htmlContent = ensureHtmlString(data.output.response);
+            } else if (typeof data.output.html === 'string' && data.output.html.trim() !== '') {
                 htmlContent = data.output.html;
+            } else if (typeof data.output.plaintext === 'string' && data.output.plaintext.trim() !== '') {
+                htmlContent = ensureHtmlString(data.output.plaintext);
             }
-        } else if (data.output) {
-            botResponse = data.output;
-        } else if (data.response) {
-            botResponse = data.response;
-        } else if (data.message) {
-            botResponse = data.message;
-        } else if (data.text) {
-            botResponse = data.text;
-        } else if (data.reply) {
-            botResponse = data.reply;
-        } else if (data.data && data.data.output) {
-            botResponse = data.data.output;
-        } else if (data.result) {
-            botResponse = data.result;
         } else if (typeof data === 'string') {
-            botResponse = data;
+            htmlContent = ensureHtmlString(data);
+        } else if (data.output || data.response || data.message || data.text || data.reply || (data.data && data.data.output) || data.result) {
+            const fallback = data.output || data.response || data.message || data.text || data.reply || (data.data && data.data.output) || data.result;
+            htmlContent = ensureHtmlString(String(fallback));
         }
         
-        console.log('Processed bot response:', { botResponse, htmlContent });
+        console.log('Processed bot response:', { htmlContent });
         
-        // Add the webhook response with HTML content if available
-        if (htmlContent) {
-            addBotMessageWithHTML(botResponse, htmlContent);
-        } else {
-            addBotMessage(botResponse);
-        }
+        // Classify and add the webhook response as HTML content
+        addBotMessageWithHTML('', classifyWebhookHtml(htmlContent));
         
     } catch (error) {
         console.error('Error sending to webhook:', error);
         
-        // Remove typing indicator
+        // Remove waiting indicators and set offline status
         const chatMessages = document.getElementById('chatMessages');
-        const typingMessage = chatMessages.lastElementChild;
-        if (typingMessage && typingMessage.querySelector('.typing-indicator')) {
-            typingMessage.remove();
-        }
+        removeInlineStatus();
+        removeTypingBubble();
+        setOfflineStatus();
         
-        // Add fallback response with quick actions
-        addBotMessage('I apologize, but I\'m having trouble connecting right now. You can use the quick action buttons below or try again later!');
+        // Australian-style error messages
+        const aussieMessages = [
+            "Oh mate, I'm away at the moment! Either I'm updating my resources or improving to better help you. Give me a sec and try again, yeah?",
+            "Crikey! I'm having a bit of a moment here. I'm either updating my knowledge base or working on being a better assistant. Hang tight and give it another go!",
+            "Fair dinkum, I'm not quite myself right now! I'm either refreshing my resources or getting better at helping you out. Try again in a moment, mate!",
+            "Blimey! I'm having a bit of trouble connecting. I'm either updating my systems or improving my responses. Give me a tick and try again!",
+            "Stone the flamin' crows! I'm away updating my resources or getting better at helping you. Try again in a moment, will ya?"
+        ];
+        
+        const randomMessage = aussieMessages[Math.floor(Math.random() * aussieMessages.length)];
+        addBotMessage(randomMessage);
         addQuickActions();
     } finally {
         isWaitingForResponse = false;
@@ -642,16 +804,16 @@ document.addEventListener('keydown', function(event) {
 
 // Booking Functions
 function handleBookingRequest() {
-    // Show typing indicator
-    addBotMessage('', true);
+    // Show typing bubble first, then set thinking status (inline appears below)
+    showTypingBubble();
+    setThinkingStatus();
     
     setTimeout(() => {
-        // Remove typing indicator
+        // Remove waiting indicators and set online status
         const chatMessages = document.getElementById('chatMessages');
-        const typingMessage = chatMessages.lastElementChild;
-        if (typingMessage && typingMessage.querySelector('.typing-indicator')) {
-            typingMessage.remove();
-        }
+        removeInlineStatus();
+        removeTypingBubble();
+        setOnlineStatus();
         
         if (!hasUserInfo) {
             addBotMessage('I\'d be happy to help you book a storage unit! First, please provide your name and email above, then I can help you with the booking process.');
@@ -880,8 +1042,8 @@ async function sendBookingToWebhook() {
         return;
     }
     
-    // Show typing indicator while waiting for webhook response
-    addBotMessage('', true);
+    // Set thinking status (text-only inline)
+    setThinkingStatus();
     
     try {
         const payload = {
@@ -923,68 +1085,64 @@ async function sendBookingToWebhook() {
         }
         console.log('Booking webhook response ←', data);
         
-        // Remove typing indicator
+        // Remove inline status and set online status
         const chatMessages = document.getElementById('chatMessages');
-        const typingMessage = chatMessages.lastElementChild;
-        if (typingMessage && typingMessage.querySelector('.typing-indicator')) {
-            typingMessage.remove();
-        }
+        removeInlineStatus();
+        setOnlineStatus();
         
-        // Process different response formats from n8n
-        let botResponse = 'Thank you for your booking request! Our team will review your details and contact you shortly to confirm availability and complete the booking process.';
+        // Process booking webhook response - always expect HTML format
         let htmlContent = '';
-        
-        // Check for n8n chat package response format with plaintext/html structure
+
+        // Prefer new format: array with output.response
         if (Array.isArray(data) && data.length > 0 && data[0].output) {
             const output = data[0].output;
-            if (output.plaintext) {
-                botResponse = output.plaintext;
-            }
-            if (output.html && output.html.trim() !== '') {
+            if (typeof output.response === 'string' && output.response.trim() !== '') {
+                htmlContent = ensureHtmlString(output.response);
+            } else if (typeof output.html === 'string' && output.html.trim() !== '') {
                 htmlContent = output.html;
+            } else if (typeof output.plaintext === 'string' && output.plaintext.trim() !== '') {
+                htmlContent = ensureHtmlString(output.plaintext);
             }
         } else if (data.output && typeof data.output === 'object') {
             // Handle single object response
-            if (data.output.plaintext) {
-                botResponse = data.output.plaintext;
-            }
-            if (data.output.html && data.output.html.trim() !== '') {
+            if (typeof data.output.response === 'string' && data.output.response.trim() !== '') {
+                htmlContent = ensureHtmlString(data.output.response);
+            } else if (typeof data.output.html === 'string' && data.output.html.trim() !== '') {
                 htmlContent = data.output.html;
+            } else if (typeof data.output.plaintext === 'string' && data.output.plaintext.trim() !== '') {
+                htmlContent = ensureHtmlString(data.output.plaintext);
             }
-        } else if (data.output) {
-            botResponse = data.output;
-        } else if (data.response) {
-            botResponse = data.response;
-        } else if (data.message) {
-            botResponse = data.message;
-        } else if (data.text) {
-            botResponse = data.text;
-        } else if (data.reply) {
-            botResponse = data.reply;
-        } else if (data.data && data.data.output) {
-            botResponse = data.data.output;
-        } else if (data.result) {
-            botResponse = data.result;
         } else if (typeof data === 'string') {
-            botResponse = data;
+            htmlContent = ensureHtmlString(data);
+        } else if (data.output || data.response || data.message || data.text || data.reply || (data.data && data.data.output) || data.result) {
+            const fallback = data.output || data.response || data.message || data.text || data.reply || (data.data && data.data.output) || data.result;
+            htmlContent = ensureHtmlString(String(fallback));
         }
         
-        console.log('Processed booking bot response:', { botResponse, htmlContent });
+        console.log('Processed booking bot response:', { htmlContent });
         
-        // Add the webhook response as a bot message with HTML content if available
-        addBotMessageWithHTML(botResponse, htmlContent);
+        // Classify and add the webhook response as HTML content
+        addBotMessageWithHTML('', classifyWebhookHtml(htmlContent));
         
     } catch (error) {
         console.error('Error sending booking to webhook:', error);
         
-        // Remove typing indicator
+        // Remove waiting indicators and set offline status
         const chatMessages = document.getElementById('chatMessages');
-        const typingMessage = chatMessages.lastElementChild;
-        if (typingMessage && typingMessage.querySelector('.typing-indicator')) {
-            typingMessage.remove();
-        }
+        removeInlineStatus();
+        removeTypingBubble();
+        setOfflineStatus();
         
-        // Add fallback response
-        addBotMessage('I apologize, but there was an issue submitting your booking. Please try again or contact us directly.');
+        // Australian-style error messages for booking
+        const aussieBookingMessages = [
+            "Blimey! I'm having a bit of trouble processing your booking right now. I'm either updating my booking system or improving my responses. Give me a tick and try again, mate!",
+            "Crikey! I'm away updating my booking resources at the moment. Try again in a sec and I'll get your booking sorted, yeah?",
+            "Fair dinkum! I'm having a moment with the booking system. I'm either refreshing my resources or getting better at processing bookings. Hang tight and give it another go!",
+            "Stone the flamin' crows! I'm away improving my booking capabilities. Try again in a moment and I'll get your storage unit sorted!",
+            "Oh mate, I'm having a bit of trouble with the booking system right now. I'm either updating my resources or improving to better help you. Give me a sec and try again!"
+        ];
+        
+        const randomMessage = aussieBookingMessages[Math.floor(Math.random() * aussieBookingMessages.length)];
+        addBotMessage(randomMessage);
     }
 }

@@ -169,28 +169,259 @@ body {
     background: #1e3a8a;
     color: white;
     padding: 20px 24px;
-    text-align: center;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: all 0.3s ease;
+    min-height: 80px;
+}
+
+.chatbot-header.centered {
+    align-items: center;
+}
+
+.chatbot-header.centered .chatbot-title {
+    align-items: flex-start;
 }
 
 .chatbot-title {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    transition: all 0.3s ease;
     justify-content: center;
-    gap: 12px;
-    font-size: 22px;
-    font-weight: 700;
-    margin-bottom: 4px;
+}
+
+.chatbot-header.centered .chatbot-title {
+    justify-content: center;
 }
 
 .chatbot-logo {
-    width: 32px;
-    height: 32px;
+    width: 48px;
+    height: 48px;
     object-fit: contain;
+    border-radius: 50%;
+    background: white;
+    padding: 4px;
+}
+
+.chatbot-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: white;
+    margin: 0;
 }
 
 .chatbot-subtitle {
-    font-size: 14px;
+    font-size: 12px;
+    color: #cbd5e1;
+    margin: 0;
+}
+
+.chatbot-status {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    margin-top: 4px;
+    transition: all 0.3s ease;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-direction: row-reverse;
+    transition: all 0.3s ease;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+    transition: all 0.3s ease;
+}
+
+.status-dot.online {
+    background: #10b981;
+}
+
+.status-dot.thinking {
+    background: #f59e0b;
+    animation: thinking 1.5s infinite;
+}
+
+.status-dot.typing {
+    background: #3b82f6;
+    animation: typing 1.2s infinite;
+}
+
+.status-dot.almost-done {
+    background: #8b5cf6;
+    animation: almost-done 1.8s infinite;
+}
+
+.status-dot.offline {
+    background: #ef4444;
+    animation: offline 2s infinite;
+}
+
+/* Only Online is green; others use their specific colors */
+.status-dot.online { background: #10b981; }
+
+.status-text {
+    font-size: 12px;
+    font-weight: 500;
+    color: #10b981;
+    transition: all 0.3s ease;
+}
+
+.status-message {
+    font-size: 11px;
+    opacity: 0;
+    font-style: italic;
+    min-height: 0;
+    text-align: left;
+    color: white;
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.status-message-visible {
     opacity: 0.9;
+    min-height: 14px;
+}
+
+@keyframes thinking {
+    0%, 100% {
+        transform: scale(1) rotate(0deg);
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+    }
+    25% {
+        transform: scale(1.1) rotate(90deg);
+        opacity: 0.9;
+        box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2);
+    }
+    50% {
+        transform: scale(1.2) rotate(180deg);
+        opacity: 0.8;
+        box-shadow: 0 0 0 8px rgba(16, 185, 129, 0.1);
+    }
+    75% {
+        transform: scale(1.1) rotate(270deg);
+        opacity: 0.9;
+        box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2);
+    }
+}
+
+@keyframes typing {
+    0%, 100% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+    }
+    20% {
+        transform: translateY(-6px) scale(1.1);
+        opacity: 0.9;
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.3);
+    }
+    40% {
+        transform: translateY(-12px) scale(1.2);
+        opacity: 0.8;
+        box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.2);
+    }
+    60% {
+        transform: translateY(-6px) scale(1.1);
+        opacity: 0.9;
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.3);
+    }
+    80% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+    }
+}
+
+@keyframes almost-done {
+    0%, 100% {
+        transform: scale(1) rotate(0deg);
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+    }
+    12.5% {
+        transform: scale(1.2) rotate(45deg);
+        opacity: 0.9;
+        box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.3);
+    }
+    25% {
+        transform: scale(1.4) rotate(90deg);
+        opacity: 0.8;
+        box-shadow: 0 0 0 8px rgba(16, 185, 129, 0.2);
+    }
+    37.5% {
+        transform: scale(1.2) rotate(135deg);
+        opacity: 0.9;
+        box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.3);
+    }
+    50% {
+        transform: scale(0.8) rotate(180deg);
+        opacity: 0.7;
+        box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.4);
+    }
+    62.5% {
+        transform: scale(1.1) rotate(225deg);
+        opacity: 0.8;
+        box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.3);
+    }
+    75% {
+        transform: scale(1.3) rotate(270deg);
+        opacity: 0.9;
+        box-shadow: 0 0 0 10px rgba(16, 185, 129, 0.2);
+    }
+    87.5% {
+        transform: scale(1.1) rotate(315deg);
+        opacity: 0.95;
+        box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.3);
+    }
+}
+
+@keyframes offline {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+    }
+    25% {
+        opacity: 0.7;
+        transform: scale(0.9);
+        box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
+    }
+    50% {
+        opacity: 0.3;
+        transform: scale(0.8);
+        box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2);
+    }
+    75% {
+        opacity: 0.7;
+        transform: scale(0.9);
+        box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
+    }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+    }
+    50% {
+        opacity: 0.6;
+        transform: scale(1.1);
+        box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2);
+    }
 }
 
 .chatbot-body {
@@ -209,6 +440,34 @@ body {
     flex-direction: column;
     gap: 16px;
     min-height: 0; /* Important for flex scrolling */
+}
+
+/* Inline status under latest message */
+.inline-status {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #6b7280;
+    font-size: 12px;
+    margin-left: 52px; /* align under bot bubble (avatar width + gap) */
+}
+
+/* Animated ellipsis for inline status text */
+.inline-status-text::after {
+    content: '';
+    display: inline-block;
+    width: 1em;
+    text-align: left;
+    animation: ellipsis 1.2s infinite steps(4);
+}
+
+@keyframes ellipsis {
+    0% { content: ''; }
+    25% { content: '.'; }
+    50% { content: '..'; }
+    75% { content: '...'; }
+    100% { content: ''; }
 }
 
 .message {
@@ -530,10 +789,33 @@ body {
     .chatbot-header {
         padding: 16px;
         flex-shrink: 0;
+        gap: 12px;
     }
     
-    .chatbot-title {
-        font-size: 18px;
+    .chatbot-logo {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .chatbot-name {
+        font-size: 16px;
+    }
+    
+    .chatbot-subtitle {
+        font-size: 11px;
+    }
+    
+    .chatbot-status {
+        align-items: flex-start;
+        margin-top: 2px;
+    }
+    
+    .status-text {
+        font-size: 11px;
+    }
+    
+    .status-message {
+        font-size: 10px;
     }
     
     .chat-messages {
@@ -1100,17 +1382,85 @@ body {
 /* Webhook HTML Content Styles */
 .webhook-html-content {
     margin-top: 16px;
-    border-radius: 8px;
+    border-radius: 12px;
     overflow: hidden;
-    background: #f8f9fa;
-    border: 1px solid #e2e8f0;
+    background: white;
+    padding: 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* Ensure webhook content typography matches chat message text */
+.webhook-html-content, .webhook-html-content * {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    color: inherit;
+}
+
+/* Variants for webhook-rendered content */
+.webhook-html-content.webhook-card {
+    padding: 16px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+/* Support incoming payloads that use .card root */
+.webhook-html-content .card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+    padding: 16px;
+}
+
+.webhook-html-content.webhook-table {
+    padding: 0;
+}
+
+.webhook-html-content.webhook-list {
+    padding: 12px 16px;
+}
+
+.webhook-html-content p {
+    margin: 0 0 8px 0;
+    padding: 0;
+}
+
+.webhook-html-content ul {
+    margin: 0 0 8px 1.2rem;
+    padding: 0;
+    list-style: disc;
+}
+.webhook-html-content ol {
+    margin: 0 0 8px 1.2rem;
+    padding: 0;
+    list-style: decimal;
+}
+
+.webhook-html-content.webhook-list li {
+    background: #f9fafb;
+    margin-bottom: 6px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.webhook-html-content.webhook-list li:last-child {
+    margin-bottom: 0;
+}
+
+.webhook-html-content.webhook-list li:hover {
+    background: #f0f9ff;
+    transform: translateX(2px);
 }
 
 .webhook-html-content table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     font-size: 14px;
     background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .webhook-html-content table thead {
@@ -1119,30 +1469,37 @@ body {
 }
 
 .webhook-html-content table thead th {
-    padding: 12px 8px;
+    padding: 16px 12px;
     text-align: left;
     font-weight: 600;
-    font-size: 13px;
+    font-size: 14px;
     border: none;
+    letter-spacing: 0.5px;
 }
 
 .webhook-html-content table tbody tr {
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background-color 0.2s ease;
+}
+
+.webhook-html-content table tbody tr:last-child {
+    border-bottom: none;
 }
 
 .webhook-html-content table tbody tr:nth-child(even) {
-    background: #f8f9fa;
+    background: #fafbfc;
 }
 
 .webhook-html-content table tbody tr:hover {
-    background: #e3f2fd;
+    background: #f0f9ff;
 }
 
 .webhook-html-content table tbody td {
-    padding: 10px 8px;
+    padding: 14px 12px;
     border: none;
-    font-size: 13px;
-    color: #374151;
+    font-size: 14px;
+    color: #475569;
+    line-height: 1.4;
 }
 
 .webhook-html-content table tbody td:first-child {
@@ -1168,6 +1525,20 @@ body {
 }
 
 @media (max-width: 480px) {
+    .webhook-html-content {
+        padding: 12px;
+    }
+    
+    .webhook-html-content p {
+        font-size: 14px;
+    }
+    
+    .webhook-html-content li {
+        padding: 10px;
+        font-size: 13px;
+        margin-bottom: 6px;
+    }
+    
     .webhook-html-content table {
         min-width: 500px;
     }

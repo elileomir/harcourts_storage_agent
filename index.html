@@ -75,12 +75,19 @@
 
     <!-- Chatbot Container -->
     <div class="chatbot-container">
-        <div class="chatbot-header">
+        <div class="chatbot-header centered">
+            <img src="StorageAI_Logo.png" alt="StorageAI" class="chatbot-logo">
             <div class="chatbot-title">
-                <img src="StorageAI_Logo.png" alt="StorageAI" class="chatbot-logo">
-                <span>Storage Units Assistant</span>
+                <div class="chatbot-subtitle">Chat with</div>
+                <div class="chatbot-name">Stowy Agent</div>
+                <div class="chatbot-status">
+                    <div class="status-indicator">
+                        <div class="status-dot online" id="statusDot"></div>
+                        <div class="status-text" id="statusText">Online</div>
+                    </div>
+                    <div class="status-message" id="statusMessage"></div>
+                </div>
             </div>
-            <div class="chatbot-subtitle">Expression of Interest</div>
         </div>
         
         <div class="chatbot-body">
