@@ -40,7 +40,7 @@ function updateStatus(status, message = '') {
         if (message) renderInlineStatus(message, status); else removeInlineStatus();
         // Keep header clean/centered, no header message
         statusMessage.textContent = '';
-        statusMessage.classList.remove('status-message-visible');
+            statusMessage.classList.remove('status-message-visible');
         header.classList.add('centered');
     }
 }
@@ -707,7 +707,7 @@ async function sendToWebhook(message) {
         
         // Process webhook response - always expect HTML format
         let htmlContent = '';
-
+        
         // Prefer new format: array with output.response
         if (Array.isArray(data) && data.length > 0 && data[0].output) {
             const output = data[0].output;
@@ -1092,7 +1092,7 @@ async function sendBookingToWebhook() {
         
         // Process booking webhook response - always expect HTML format
         let htmlContent = '';
-
+        
         // Prefer new format: array with output.response
         if (Array.isArray(data) && data.length > 0 && data[0].output) {
             const output = data[0].output;
