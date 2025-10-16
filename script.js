@@ -979,7 +979,8 @@ async function sendBookingToWebhook() {
         return;
     }
     
-    // Set thinking status (text-only inline)
+    // Show typing bubble and set thinking status
+    showTypingBubble();
     setThinkingStatus();
     
     try {
@@ -1022,52 +1023,25 @@ async function sendBookingToWebhook() {
         }
         console.log('Booking webhook response ←', data);
         
-        // Remove inline status and set online status
-        const chatMessages = document.getElementById('chatMessages');
+        // Remove waiting indicators and set online status
+        removeTypingBubble();
         removeInlineStatus();
         setOnlineStatus();
         
-        // Process booking webhook response - always expect HTML format
-        let htmlContent = '';
-        
-        // Prefer new format: array with output.response
-        if (Array.isArray(data) && data.length > 0 && data[0].output) {
-            const output = data[0].output;
-            if (typeof output.response === 'string' && output.response.trim() !== '') {
-                htmlContent = ensureHtmlString(output.response);
-            } else if (typeof output.html === 'string' && output.html.trim() !== '') {
-                htmlContent = output.html;
-            } else if (typeof output.plaintext === 'string' && output.plaintext.trim() !== '') {
-                htmlContent = ensureHtmlString(output.plaintext);
-            }
-        } else if (data.output && typeof data.output === 'object') {
-            // Handle single object response
-            if (typeof data.output.response === 'string' && data.output.response.trim() !== '') {
-                htmlContent = ensureHtmlString(data.output.response);
-            } else if (typeof data.output.html === 'string' && data.output.html.trim() !== '') {
-                htmlContent = data.output.html;
-            } else if (typeof data.output.plaintext === 'string' && data.output.plaintext.trim() !== '') {
-                htmlContent = ensureHtmlString(data.output.plaintext);
-            }
-        } else if (typeof data === 'string') {
-            htmlContent = ensureHtmlString(data);
-        } else if (data.output || data.response || data.message || data.text || data.reply || (data.data && data.data.output) || data.result) {
-            const fallback = data.output || data.response || data.message || data.text || data.reply || (data.data && data.data.output) || data.result;
-            htmlContent = ensureHtmlString(String(fallback));
+        // Process booking webhook response
+        if (data && data.output && data.output.response) {
+            const botResponse = data.output.response;
+            addBotMessage(botResponse);
+        } else {
+            addBotMessage('I received an empty response for the booking. Please try again.');
         }
-        
-        console.log('Processed booking bot response:', { htmlContent });
-        
-        // Classify and add the webhook response as HTML content
-        addBotMessage('', classifyWebhookHtml(htmlContent));
         
     } catch (error) {
         console.error('Error sending booking to webhook:', error);
         
         // Remove waiting indicators and set offline status
-        const chatMessages = document.getElementById('chatMessages');
-        removeInlineStatus();
         removeTypingBubble();
+        removeInlineStatus();
         setOfflineStatus();
         
         // Australian-style error messages for booking
