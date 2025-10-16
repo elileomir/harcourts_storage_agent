@@ -761,9 +761,8 @@ function handleBookingRequest() {
         expireActiveBookingForm();
         
         if (hasExistingBooking) {
-            // Show confirmation for existing booking
-            addBotMessage('I see you already have a booking request. Would you like to edit your existing booking or create a new one?');
-            addBookingConfirmationButtons();
+            // Directly edit the existing booking
+            editExistingBooking();
         } else {
             // Show booking form inline
             addBotMessage('Great! I\'d be happy to help you book a storage unit. Please fill out the form below with your details.');
@@ -774,53 +773,12 @@ function handleBookingRequest() {
     }, 1500);
 }
 
-function addBookingConfirmationButtons() {
-    const chatMessages = document.getElementById('chatMessages');
-    const buttonDiv = document.createElement('div');
-    buttonDiv.className = 'message bot-message booking-confirmation';
-    buttonDiv.innerHTML = `
-        <div class="message-avatar">
-            <img src="StorageAI_Logo.png" alt="StorageAI" class="bot-avatar-img">
-        </div>
-        <div class="message-content">
-            <div class="booking-confirmation-container">
-                <div class="booking-confirmation-buttons">
-                    <button class="btn-primary booking-confirm-btn" onclick="editExistingBooking()">
-                        <i class="fas fa-edit"></i> Edit Existing Booking
-                    </button>
-                    <button class="btn-secondary booking-confirm-btn" onclick="createNewBooking()">
-                        <i class="fas fa-plus"></i> Book Another Storage
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    chatMessages.appendChild(buttonDiv);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-    
-    // Add animation
-    setTimeout(() => {
-        buttonDiv.style.opacity = '1';
-        buttonDiv.style.transform = 'translateY(0)';
-    }, 100);
-}
-
 function editExistingBooking() {
     // Expire any existing form and create new one with existing data
     expireActiveBookingForm();
     addBotMessage('I\'ll help you edit your existing booking. Please update the details below.');
     setTimeout(() => {
         addBookingForm(currentBookingData);
-    }, 500);
-}
-
-function createNewBooking() {
-    // Expire any existing form and create new one
-    expireActiveBookingForm();
-    addBotMessage('I\'ll help you create a new booking. Please fill out the details below.');
-    setTimeout(() => {
-        addBookingForm();
     }, 500);
 }
 
